@@ -20,8 +20,9 @@ import {
   loadResultsSnapshot,
   saveResultsSnapshot,
 } from './resultsIndexedDb';
-import { isNoUploadMode } from './previewMode';
+import { isNoUploadMode, isOfflineMode } from './previewMode';
 import { getResultsUploadUrl, uploadResultsFiles } from './resultsUpload';
+import { buildSyncFiles } from './syncMarkers';
 
 function resolveParticipantId(vm, expData) {
   const exp = expData && typeof expData === 'object' ? expData : {};
@@ -212,7 +213,7 @@ export function buildCompleteResultsFiles(allRows, participantId, expData, sessi
 }
 
 export async function uploadCompleteResults(context, sessionTimes, resultsScope = 'complete') {
-  if (isNoUploadMode()) return [];
+  if (isNoUploadMode() || isOfflineMode()) return [];
   const files = buildCompleteResultsFiles(
     context.allRows,
     context.participantId,
@@ -279,12 +280,14 @@ export async function uploadReadingTrialCheckpoint(vm, trial, trialIndex, studyC
   if (isNoUploadMode()) return;
   const context = resolveExportContext(vm, studyConfig);
   const session = getResultsSession(vm);
-  if (!context.uploadUrl || !session) return;
+  if (!session) return;
 
   if (!Array.isArray(session.trialsCompleted)) session.trialsCompleted = [];
   if (!session.trialsCompleted.includes(trialIndex)) {
     session.trialsCompleted.push(trialIndex);
   }
+
+  if (isOfflineMode() || !context.uploadUrl) return;
 
   if (!isLastParagraphOfArticle(vm, trial, trialIndex)) {
     return;
@@ -338,9 +341,59 @@ export async function uploadReadingTrialCheckpoint(vm, trial, trialIndex, studyC
   );
 }
 
+/** Offline mode: write a cumulative backup to the local lab server after this many reading screens. */
+export const OFFLINE_CHECKPOINT_EVERY = 5;
+
+/**
+ * Offline mode: POST all data collected so far to the local lab server (serve.js), which writes
+ * it to Results/<folderName>/<label>/. Nothing leaves the computer. Throws if the server refuses.
+ */
+export async function saveOfflineResultsToLocalServer(vm, label, extraFiles = []) {
+  const context = resolveExportContext(vm, null);
+  const sessionTimes = label === 'complete'
+    ? buildCompleteSessionTimes(vm)
+    : buildCheckpointSessionTimes(vm);
+  const files = buildCompleteResultsFiles(
+    context.allRows,
+    context.participantId,
+    context.expData,
+    sessionTimes
+  ).concat(buildSyncFiles(vm), extraFiles);
+  const res = await fetch(new URL('offline-save', window.location.href).toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      folderName: context.folderName,
+      label,
+      files: files.filter((file) => file && file.content),
+    }),
+  });
+  if (!res.ok) throw new Error(`Local save failed (${res.status})`);
+  return res.json();
+}
+
 /** Run checkpoint upload and IndexedDB snapshot after the UI advances (non-blocking). */
 export function deferReadingTrialSafeguards(vm, trial, trialIndex, studyConfig) {
   if (isNoUploadMode()) return;
+  if (isOfflineMode()) {
+    const session = getResultsSession(vm);
+    if (session) {
+      if (!Array.isArray(session.trialsCompleted)) session.trialsCompleted = [];
+      if (!session.trialsCompleted.includes(trialIndex)) {
+        session.trialsCompleted.push(trialIndex);
+        const done = session.trialsCompleted.length;
+        if (done % OFFLINE_CHECKPOINT_EVERY === 0) {
+          const label = `after_${String(done).padStart(2, '0')}_passages`;
+          queueMicrotask(() => {
+            saveOfflineResultsToLocalServer(vm, label).catch((err) => {
+              console.warn('Offline checkpoint save failed:', err);
+            });
+          });
+        }
+      }
+    }
+    return;
+  }
   queueMicrotask(() => {
     uploadReadingTrialCheckpoint(vm, trial, trialIndex, studyConfig).catch((err) => {
       console.warn('Trial checkpoint upload failed:', err);
@@ -379,7 +432,7 @@ export async function persistResultsSnapshot(vm, studyConfig) {
 }
 
 async function uploadSnapshotPayload(snapshot) {
-  if (isNoUploadMode()) return false;
+  if (isNoUploadMode() || isOfflineMode()) return false;
   if (!snapshot || !snapshot.uploadUrl || !snapshot.folderName || !Array.isArray(snapshot.files)) {
     return false;
   }
@@ -419,7 +472,7 @@ async function uploadSnapshotPayload(snapshot) {
 }
 
 export async function retryPendingSnapshotUpload(vm, studyConfig) {
-  if (isNoUploadMode()) return false;
+  if (isNoUploadMode() || isOfflineMode()) return false;
   const session = getResultsSession(vm);
   if (session) {
     const snapshot = await loadResultsSnapshot(session.sessionId);

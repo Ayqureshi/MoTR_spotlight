@@ -146,10 +146,12 @@
 </Screen>
 
     <ExportReportsScreen
+      v-if="!offlineMode"
       :skip-sona-input="true"
       :prolific-completion-url="prolificCompletionUrl"
       :github-results-path="githubResultsPath"
     />
+    <OfflineResultsScreen v-if="offlineMode" />
   </Experiment>
   </div>
 </template>
@@ -187,6 +189,9 @@ import {
 } from '@motr-shared/oneStopExportFields';
 import DemographicsOneStopQuestionnaire from '@motr-shared/components/DemographicsOneStopQuestionnaire.vue';
 import ConsentPROLIFIC from './components/ConsentPROLIFIC.vue';
+import OfflineResultsScreen from '@motr-shared/components/OfflineResultsScreen.vue';
+import { isOfflineMode, silenceOfflineSocketWarning } from '@motr-shared/previewMode.js';
+import { markPassageEvent } from '@motr-shared/syncMarkers.js';
 
 // eslint-disable-next-line import/no-webpack-loader-syntax
 const oneStopStimuliXlsx = require('../../OneStop/OneStop Stimuli .xlsx');
@@ -202,6 +207,7 @@ export default {
     ReadingStartGateScreen,
     ConsentPROLIFIC,
     DemographicsOneStopQuestionnaire,
+    OfflineResultsScreen,
   },
   data() {
     return {
@@ -254,6 +260,9 @@ export default {
     this.stimuliReady = true;
   },
   computed: {
+    offlineMode() {
+      return isOfflineMode();
+    },
     cambridgeComputedScore() {
       if (!this.cambridgeQuestions.length) return 0;
       let n = 0;
@@ -272,8 +281,15 @@ export default {
     },
   },
   watch: {
+    magpie(m) {
+      silenceOfflineSocketWarning(m);
+    },
     '$magpie.currentScreenIndex'() {
       this.resetTrialView();
+      this.$nextTick(() => {
+        const meta = this.currentPassageMeta();
+        if (meta) markPassageEvent(this, 'PASSAGE_START', meta.index, meta.itemId);
+      });
     },
   },
   mounted() {
@@ -638,6 +654,16 @@ export default {
     toggleDivs() {
       this.showFirstDiv = !this.showFirstDiv;
       this.isCursorMoving = false;
+      const meta = this.currentPassageMeta();
+      if (meta && !this.showFirstDiv) markPassageEvent(this, 'PASSAGE_QUESTION', meta.index, meta.itemId);
+    },
+    /** Trial number (1-based) and item of the reading screen currently shown, or null. */
+    currentPassageMeta() {
+      if (!this.$el || !this.$el.querySelector) return null;
+      const indexEl = this.$el.querySelector('.main_screen .trial_index');
+      if (!indexEl || indexEl.value === '') return null;
+      const itemEl = this.$el.querySelector('.main_screen .item_id');
+      return { index: parseInt(indexEl.value, 10), itemId: itemEl ? itemEl.value : '' };
     },
     resetTrialView() {
       this.showFirstDiv = true;
@@ -690,6 +716,7 @@ export default {
       });
     },
     submitTrialResponse(trial, trialIndex) {
+      markPassageEvent(this, 'PASSAGE_END', trialIndex + 1, trial && trial.item_id);
       try {
         this.recordResponse(trial);
       } catch (err) {

@@ -2,6 +2,7 @@ import {
   appendOneStopTrialMeta,
   readOneStopTrialMetaFromEl,
 } from './oneStopExportFields';
+import { nowEpochMs, toScreenPx } from './syncMarkers';
 
 /** Wilcox et al. (2024) MoTR raw sampling rate: 20 Hz (50 ms). */
 export const RAW_SAMPLE_INTERVAL_MS = 50;
@@ -87,9 +88,14 @@ export function saveRawPositionSample(vm) {
     mousePositionX: Math.round(x),
     mousePositionY: Math.round(y),
     sampleTimeMs: performance.now(),
+    epoch_time_ms: nowEpochMs(),
     SubjectId: subjectId,
     SubjectID: subjectId,
   };
+
+  const screenPos = toScreenPx(x, y);
+  payload.mouse_screen_x_px = screenPos.x;
+  payload.mouse_screen_y_px = screenPos.y;
 
   if (wordRect) {
     payload.wordPositionTop = wordRect.top;

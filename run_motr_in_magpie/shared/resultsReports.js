@@ -294,7 +294,8 @@ const FIXATION_CSV_COLUMNS = columnsWithOneStopAfterCondition([
 
 const RAW_POSITION_CSV_COLUMNS = columnsWithOneStopAfterCondition([
   'participant_id', 'SONAId', 'Condition', 'ItemId', 'text_presentation_order', 'WordIndex', 'Word',
-  'responseTime', 'sampleTimeMs', 'mousePositionX', 'mousePositionY',
+  'responseTime', 'sampleTimeMs', 'epoch_time_ms', 'mousePositionX', 'mousePositionY',
+  'mouse_screen_x_px', 'mouse_screen_y_px',
   'wordPositionTop', 'wordPositionLeft', 'wordPositionBottom', 'wordPositionRight',
   'line_number', 'position_in_line', 'response', 'response_correct',
   'device', 'hand', 'experiment_date', 'experiment_start_date', 'experiment_start_time',
@@ -345,8 +346,11 @@ function buildRawPositionReport(allRows, participantId, expData, sessionTimes) {
       Word: outOfBoundsWordForIndex(row.Index, val('Word')),
       responseTime: val('responseTime'),
       sampleTimeMs: row.sampleTimeMs != null && row.sampleTimeMs !== '' ? Math.round(Number(row.sampleTimeMs)) : '',
+      epoch_time_ms: val('epoch_time_ms'),
       mousePositionX: val('mousePositionX'),
       mousePositionY: val('mousePositionY'),
+      mouse_screen_x_px: val('mouse_screen_x_px'),
+      mouse_screen_y_px: val('mouse_screen_y_px'),
       wordPositionTop: val('wordPositionTop'),
       wordPositionLeft: val('wordPositionLeft'),
       wordPositionBottom: val('wordPositionBottom'),

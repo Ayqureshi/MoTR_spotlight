@@ -20,3 +20,7 @@ Use this link to try the reading phase only (instructions, practice trial, and f
 Local dev: `http://localhost:8080/?preview=reading`
 
 Demographics-only preview: `?preview=demographics`
+
+## Offline sessions
+
+For internet-free lab sessions, install/build the app before disconnecting and open the local server URL with `?offline=1`. The final screen downloads the results ZIP instead of uploading it. Setup and EyeLink pairing notes: [Offline mode](../OFFLINE_MODE.md).

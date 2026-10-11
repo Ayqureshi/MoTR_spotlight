@@ -147,11 +147,12 @@
 </Screen>
 
     <ExportReportsScreen
-      v-if="!readingPreview"
+      v-if="!readingPreview && !offlineMode"
       :skip-sona-input="true"
       :github-results-path="githubResultsPath"
     />
-    <CustomSubmitResultsScreen v-if="!readingPreview" />
+    <CustomSubmitResultsScreen v-if="!readingPreview && !offlineMode" />
+    <OfflineResultsScreen v-if="!readingPreview && offlineMode" />
 
     <Screen v-if="readingPreview" title="Preview complete" class="instructions" key="reading-preview-done">
       <div style="width: 40em; margin: auto; text-align: center;">
@@ -200,6 +201,9 @@ import {
 import DemographicsOneStopQuestionnaire from '@motr-shared/components/DemographicsOneStopQuestionnaire.vue';
 import ConsentSONA from './components/ConsentSONA.vue';
 import CustomSubmitResultsScreen from './components/CustomSubmitResultsScreen.vue';
+import OfflineResultsScreen from '@motr-shared/components/OfflineResultsScreen.vue';
+import { isOfflineMode, silenceOfflineSocketWarning } from '@motr-shared/previewMode.js';
+import { markPassageEvent } from '@motr-shared/syncMarkers.js';
 
 // eslint-disable-next-line import/no-webpack-loader-syntax
 const oneStopStimuliXlsx = require('../../OneStop/OneStop Stimuli .xlsx');
@@ -214,6 +218,7 @@ export default {
     ExportReportsScreen,
     ReadingStartGateScreen,
     CustomSubmitResultsScreen,
+    OfflineResultsScreen,
     ConsentSONA,
     DemographicsOneStopQuestionnaire,
   },
@@ -277,6 +282,9 @@ export default {
     this.stimuliReady = true;
   },
   computed: {
+    offlineMode() {
+      return isOfflineMode();
+    },
     fullStudyUrl() {
       const url = new URL(window.location.href);
       url.searchParams.delete('preview');
@@ -304,8 +312,15 @@ export default {
     },
   },
   watch: {
+    magpie(m) {
+      silenceOfflineSocketWarning(m);
+    },
     '$magpie.currentScreenIndex'() {
       this.resetTrialView();
+      this.$nextTick(() => {
+        const meta = this.currentPassageMeta();
+        if (meta) markPassageEvent(this, 'PASSAGE_START', meta.index, meta.itemId);
+      });
     },
   },
   mounted() {
@@ -669,6 +684,16 @@ export default {
     toggleDivs() {
       this.showFirstDiv = !this.showFirstDiv;
       this.isCursorMoving = false;
+      const meta = this.currentPassageMeta();
+      if (meta && !this.showFirstDiv) markPassageEvent(this, 'PASSAGE_QUESTION', meta.index, meta.itemId);
+    },
+    /** Trial number (1-based) and item of the reading screen currently shown, or null. */
+    currentPassageMeta() {
+      if (!this.$el || !this.$el.querySelector) return null;
+      const indexEl = this.$el.querySelector('.main_screen .trial_index');
+      if (!indexEl || indexEl.value === '') return null;
+      const itemEl = this.$el.querySelector('.main_screen .item_id');
+      return { index: parseInt(indexEl.value, 10), itemId: itemEl ? itemEl.value : '' };
     },
     resetTrialView() {
       this.showFirstDiv = true;
@@ -720,6 +745,7 @@ export default {
       });
     },
     submitTrialResponse(trial, trialIndex) {
+      markPassageEvent(this, 'PASSAGE_END', trialIndex + 1, trial && trial.item_id);
       try {
         this.recordResponse(trial);
       } catch (err) {

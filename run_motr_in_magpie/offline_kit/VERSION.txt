@@ -1,0 +1,29 @@
+MoTR Spotlight offline kit
+Version: 2026-10-08 weblink-tested
+Apps: SONA + PROLIFIC (offline mode, ?offline=1)
+
+Changes in this version
+- Pilot-tested with WebLink 2.4.1 + Firefox: passage markers logged, word boxes verified.
+- Address is now http://127.0.0.1:8080/?offline=1 (localhost could hit another program and
+  show an unbypassable security warning); the black window warns about that conflict.
+- merge_weblink.py pads word boxes to fill the gaps between lines; new pad-ias command
+  writes padded .ias files for Data Viewer.
+- merge_weblink.py fine-tunes the clock alignment by matching the app's mouse trace to
+  WebLink's own mouse log (removes WebLink's ~15 ms URL-logging delay).
+
+Included from 2026-10-05 (weblink-sync)
+- EyeLink WebLink sync: passage markers (#motr_pNN_start / _question), wall-clock
+  timestamps and screen-pixel mouse positions in raw_position_samples.csv,
+  sync_events.csv, and one .ias word-box file per passage.
+- sync\merge_weblink.py to align and merge EDF/ASC gaze with mouse data (see sync\README_SYNC.txt).
+- Start-SONA-for-WebLink.cmd / Start-PROLIFIC-for-WebLink.cmd (server only, open the URL in WebLink).
+
+Earlier versions
+- 2026-10-02  Results save + ZIP download automatically on the final screen.
+- 2026-10-02  Works on older Firefox (Object.fromEntries fix); launcher opens the browser
+              only when the server is ready; clear error messages.
+- 2026-09-30  Backups every 5 passages to the Results folder.
+- 2026-09-30  Removed the red "socket URL" magpie warning box.
+- 2026-09-28  First offline build.
+
+Known issue: results folder/ZIP names use a random ID; the real SONA/Prolific ID is in the SONAId column.

@@ -1,3 +1,4 @@
+import '@motr-shared/polyfills.js';
 import Vue from 'vue';
 import VueKonva from 'vue-konva';
 import VueMagpie from 'magpie-base';
